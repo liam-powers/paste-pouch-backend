@@ -28,6 +28,13 @@ const _pastesTableRes = await sql`
   );
 `;
 
+const _visitsTableRes = await sql`
+  CREATE TABLE IF NOT EXISTS visits (
+    id SERIAL PRIMARY KEY,
+    timestamp TIMESTAMP NOT NULL
+  );
+`;
+
 function generateId(): string {
   const nanoid = customAlphabet("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 16);
   const id = nanoid();
@@ -84,6 +91,18 @@ router.post("/create-paste", async (ctx) => {
     content = body.content;
     format = body.format;
     userid = body.userid;
+
+    if (!content || !format) {
+      ctx.response.status = 400;
+      ctx.response.body = "Provide a content and format in your JSON";
+      return;
+    }
+
+    if (content.length > 100000) {
+      ctx.response.status = 403;
+      ctx.response.body = "Paste content is limited to 100,000 characters";
+      return;
+    }
 
     let _insertPasteRes;
     if (!userid) {
@@ -177,11 +196,66 @@ router.get("/read-pastes/:id", async (ctx) => {
 
   if (!pasteRes || pasteRes.length == 0) {
     ctx.response.status = 404;
-    ctx.response.body = `No user with id ${id} found`;
+    ctx.response.body = `No content for user with id ${id} found`;
     return;
   }
   ctx.response.status = 200;
   ctx.response.body = pasteRes;
+});
+
+router.get("/create-visit", async (ctx) => {
+  const timestamp = Date.now();
+  try {
+    const _visitRes = await sql`
+      INSERT INTO visits (timestamp)
+      VALUES (${timestamp});
+    `;
+  } catch (error) {
+    ctx.response.status = 400;
+    ctx.response.body =
+      "Something went wrong creating the visit, ask devs to check the logs";
+    console.error(error);
+    return;
+  }
+
+  ctx.response.status = 200;
+  ctx.response.body = `Sucessfully created visit with timestamp ${timestamp}`;
+});
+
+router.get("/summary", async (ctx) => {
+  let nVisits: number, nPastes: number, nUsers: number;
+
+  try {
+    const visitsRes = await sql`
+      SELECT COUNT(*) FROM visits;
+    `;
+
+    const pastesRes = await sql`
+      SELECT COUNT(*) FROM pastes;
+    `;
+
+    const usersRes = await sql`
+      SELECT COUNT(*) FROM users;
+    `;
+
+    nVisits = visitsRes[0].count;
+    nPastes = pastesRes[0].count;
+    nUsers = usersRes[0].count;
+
+    ctx.response.status = 200;
+    ctx.response.body = {
+      nVisits,
+      nPastes,
+      nUsers,
+    };
+
+    return;
+  } catch (error) {
+    ctx.response.status = 400;
+    ctx.response.body =
+      "Something went wrong getting summary statistics, ask devs to check the logs";
+    console.error(error);
+  }
 });
 
 interface ClientData {
