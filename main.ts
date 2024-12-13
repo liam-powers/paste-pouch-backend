@@ -1,4 +1,5 @@
 import { Application, Context, Router } from "jsr:@oak/oak";
+import { oakCors } from "https://deno.land/x/cors/mod.ts";
 import { customAlphabet } from "jsr:@viki/nanoid";
 import postgres from "postgres";
 import "jsr:@std/dotenv/load";
@@ -294,6 +295,9 @@ async function rateLimiter(ctx: Context, next: () => Promise<unknown>) {
 }
 
 const app = new Application();
+app.use(oakCors({
+  origin: "http://localhost:3000",
+}));
 app.use(router.routes());
 app.use(router.allowedMethods());
 app.use(rateLimiter);
